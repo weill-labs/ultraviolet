@@ -154,6 +154,45 @@ func BenchmarkTerminalScreenRenderSparseUpdates(b *testing.B) {
 	}
 }
 
+func BenchmarkTerminalScreenSetCell(b *testing.B) {
+	cellA := &Cell{Content: "A", Width: 1}
+	cellB := &Cell{Content: "B", Width: 1}
+
+	b.Run("changed", func(b *testing.B) {
+		s := NewTerminalScreen(io.Discard, Environ{"TERM=xterm-256color"})
+		if err := s.Resize(80, 24); err != nil {
+			b.Fatalf("resize: %v", err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x := i % 80
+			y := (i / 80) % 24
+			if i&1 == 0 {
+				s.SetCell(x, y, cellA)
+			} else {
+				s.SetCell(x, y, cellB)
+			}
+		}
+	})
+
+	b.Run("noop", func(b *testing.B) {
+		s := NewTerminalScreen(io.Discard, Environ{"TERM=xterm-256color"})
+		if err := s.Resize(80, 24); err != nil {
+			b.Fatalf("resize: %v", err)
+		}
+		s.Fill(cellA)
+		s.rbuf.Touched = make([]*LineData, s.rbuf.Height())
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x := i % 80
+			y := (i / 80) % 24
+			s.SetCell(x, y, cellA)
+		}
+	})
+}
+
 func BenchmarkStyledStringDrawScreenBuffer(b *testing.B) {
 	const width, height = 80, 24
 
@@ -166,6 +205,55 @@ func BenchmarkStyledStringDrawScreenBuffer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ss.Draw(scr, scr.Bounds())
 	}
+}
+
+func BenchmarkStyledStringDrawVariants(b *testing.B) {
+	const width, height = 80, 24
+
+	plain := NewStyledString(benchmarkPlainFrame(width, height))
+	styled := NewStyledString(benchmarkStyledFrame(width, height))
+
+	b.Run("screenbuffer/plain", func(b *testing.B) {
+		scr := NewScreenBuffer(width, height)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			plain.Draw(scr, scr.Bounds())
+		}
+	})
+
+	b.Run("screenbuffer/ansi", func(b *testing.B) {
+		scr := NewScreenBuffer(width, height)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			styled.Draw(scr, scr.Bounds())
+		}
+	})
+
+	b.Run("terminalscreen/plain", func(b *testing.B) {
+		scr := NewTerminalScreen(io.Discard, Environ{"TERM=xterm-256color"})
+		if err := scr.Resize(width, height); err != nil {
+			b.Fatalf("resize: %v", err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			plain.Draw(scr, scr.Bounds())
+		}
+	})
+
+	b.Run("terminalscreen/ansi", func(b *testing.B) {
+		scr := NewTerminalScreen(io.Discard, Environ{"TERM=xterm-256color"})
+		if err := scr.Resize(width, height); err != nil {
+			b.Fatalf("resize: %v", err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			styled.Draw(scr, scr.Bounds())
+		}
+	})
 }
 
 func benchmarkStyledFrame(width, height int) string {
@@ -192,6 +280,32 @@ func benchmarkStyledFrame(width, height int) string {
 
 		out.WriteString(line.String()[:width])
 		out.WriteString("\x1b[m")
+		if y < height-1 {
+			out.WriteByte('\n')
+		}
+	}
+
+	return out.String()
+}
+
+func benchmarkPlainFrame(width, height int) string {
+	var out strings.Builder
+	out.Grow(height * (width + 1))
+
+	const pattern = "abcdefghijklmnopqrstuvwxyz0123456789"
+	for y := 0; y < height; y++ {
+		var line strings.Builder
+		line.Grow(width)
+		line.WriteString("row ")
+		if y < 10 {
+			line.WriteByte('0')
+		}
+		line.WriteString(strconv.Itoa(y))
+		line.WriteByte(' ')
+		for line.Len() < width {
+			line.WriteString(pattern)
+		}
+		out.WriteString(line.String()[:width])
 		if y < height-1 {
 			out.WriteByte('\n')
 		}
