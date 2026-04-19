@@ -667,6 +667,83 @@ func BenchmarkBufferSetCell(b *testing.B) {
 	}
 }
 
+func BenchmarkRenderBufferSetCell(b *testing.B) {
+	cellA := &Cell{Content: "A", Width: 1}
+	cellB := &Cell{Content: "B", Width: 1}
+
+	b.Run("changed", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x := i % 80
+			y := (i / 80) % 24
+			if i&1 == 0 {
+				buf.SetCell(x, y, cellA)
+			} else {
+				buf.SetCell(x, y, cellB)
+			}
+		}
+	})
+
+	b.Run("noop", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		buf.Fill(cellA)
+		buf.Touched = make([]*LineData, buf.Height())
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x := i % 80
+			y := (i / 80) % 24
+			buf.SetCell(x, y, cellA)
+		}
+	})
+}
+
+func BenchmarkRenderBufferAreaOps(b *testing.B) {
+	cell := &Cell{Content: "X", Width: 1}
+
+	b.Run("fill/full", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf.Fill(cell)
+		}
+	})
+
+	b.Run("fill/partial", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		area := Rect(10, 5, 20, 10)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf.FillArea(cell, area)
+		}
+	})
+
+	b.Run("clear/full", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		buf.Fill(cell)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf.Clear()
+		}
+	})
+
+	b.Run("clear/partial", func(b *testing.B) {
+		buf := NewRenderBuffer(80, 24)
+		buf.Fill(cell)
+		area := Rect(10, 5, 20, 10)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf.ClearArea(area)
+		}
+	})
+}
+
 func BenchmarkBufferResize(b *testing.B) {
 	buf := NewBuffer(80, 24)
 	b.ResetTimer()
