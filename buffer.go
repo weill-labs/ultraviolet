@@ -143,7 +143,8 @@ func renderLine(buf io.StringWriter, l Line) {
 	var link Link
 	var pending bytes.Buffer
 
-	for _, c := range l {
+	for i := range l {
+		c := &l[i]
 		if c.IsZero() {
 			continue
 		}
