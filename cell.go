@@ -53,11 +53,27 @@ func (c *Cell) String() string {
 
 // Equal returns whether the cell is equal to the other cell.
 func (c *Cell) Equal(o *Cell) bool {
-	return o != nil &&
-		c.Width == o.Width &&
-		c.Content == o.Content &&
-		c.Style.Equal(&o.Style) &&
-		c.Link.Equal(&o.Link)
+	if o == nil {
+		return false
+	}
+	if c == o {
+		return true
+	}
+	if c.Width != o.Width || c.Content != o.Content {
+		return false
+	}
+	if isEmptyCell(c) && isEmptyCell(o) {
+		return true
+	}
+	return c.Style.Equal(&o.Style) && c.Link.Equal(&o.Link)
+}
+
+func isEmptyCell(c *Cell) bool {
+	return c != nil &&
+		c.Width == 1 &&
+		c.Content == " " &&
+		c.Style.IsZero() &&
+		c.Link.IsZero()
 }
 
 // IsZero returns whether the cell is an empty cell.
@@ -171,9 +187,17 @@ type Style struct {
 
 // Equal returns true if the style is equal to the other style.
 func (s *Style) Equal(o *Style) bool {
-	return s.Attrs == o.Attrs &&
-		s.Underline == o.Underline &&
-		colorEqual(s.Fg, o.Fg) &&
+	if s != nil && s == o {
+		return true
+	}
+	if s.Attrs != o.Attrs || s.Underline != o.Underline {
+		return false
+	}
+	if s.Fg == nil && s.Bg == nil && s.UnderlineColor == nil &&
+		o.Fg == nil && o.Bg == nil && o.UnderlineColor == nil {
+		return true
+	}
+	return colorEqual(s.Fg, o.Fg) &&
 		colorEqual(s.Bg, o.Bg) &&
 		colorEqual(s.UnderlineColor, o.UnderlineColor)
 }
@@ -408,15 +432,100 @@ func StyleDiff(from, to *Style) string {
 }
 
 func colorEqual(c, o color.Color) bool {
-	if c == nil && o == nil {
-		return true
-	}
 	if c == nil || o == nil {
-		return false
+		return c == nil && o == nil
+	}
+	if colorValueEqual(c, o) {
+		return true
 	}
 	cr, cg, cb, ca := c.RGBA()
 	or, og, ob, oa := o.RGBA()
 	return cr == or && cg == og && cb == ob && ca == oa
+}
+
+func colorValueEqual(c, o color.Color) bool {
+	switch c := c.(type) {
+	case color.RGBA:
+		o, ok := o.(color.RGBA)
+		return ok && c == o
+	case *color.RGBA:
+		o, ok := o.(*color.RGBA)
+		return ok && c != nil && c == o
+	case color.RGBA64:
+		o, ok := o.(color.RGBA64)
+		return ok && c == o
+	case *color.RGBA64:
+		o, ok := o.(*color.RGBA64)
+		return ok && c != nil && c == o
+	case color.NRGBA:
+		o, ok := o.(color.NRGBA)
+		return ok && c == o
+	case *color.NRGBA:
+		o, ok := o.(*color.NRGBA)
+		return ok && c != nil && c == o
+	case color.NRGBA64:
+		o, ok := o.(color.NRGBA64)
+		return ok && c == o
+	case *color.NRGBA64:
+		o, ok := o.(*color.NRGBA64)
+		return ok && c != nil && c == o
+	case color.Alpha:
+		o, ok := o.(color.Alpha)
+		return ok && c == o
+	case *color.Alpha:
+		o, ok := o.(*color.Alpha)
+		return ok && c != nil && c == o
+	case color.Alpha16:
+		o, ok := o.(color.Alpha16)
+		return ok && c == o
+	case *color.Alpha16:
+		o, ok := o.(*color.Alpha16)
+		return ok && c != nil && c == o
+	case color.Gray:
+		o, ok := o.(color.Gray)
+		return ok && c == o
+	case *color.Gray:
+		o, ok := o.(*color.Gray)
+		return ok && c != nil && c == o
+	case color.Gray16:
+		o, ok := o.(color.Gray16)
+		return ok && c == o
+	case *color.Gray16:
+		o, ok := o.(*color.Gray16)
+		return ok && c != nil && c == o
+	case ansi.BasicColor:
+		o, ok := o.(ansi.BasicColor)
+		return ok && c == o
+	case *ansi.BasicColor:
+		o, ok := o.(*ansi.BasicColor)
+		return ok && c != nil && c == o
+	case ansi.IndexedColor:
+		o, ok := o.(ansi.IndexedColor)
+		return ok && c == o
+	case *ansi.IndexedColor:
+		o, ok := o.(*ansi.IndexedColor)
+		return ok && c != nil && c == o
+	case ansi.TrueColor:
+		o, ok := o.(ansi.TrueColor)
+		return ok && c == o
+	case *ansi.TrueColor:
+		o, ok := o.(*ansi.TrueColor)
+		return ok && c != nil && c == o
+	case ansi.RGBColor:
+		o, ok := o.(ansi.RGBColor)
+		return ok && c == o
+	case *ansi.RGBColor:
+		o, ok := o.(*ansi.RGBColor)
+		return ok && c != nil && c == o
+	case ansi.HexColor:
+		o, ok := o.(ansi.HexColor)
+		return ok && c == o
+	case *ansi.HexColor:
+		o, ok := o.(*ansi.HexColor)
+		return ok && c != nil && c == o
+	default:
+		return false
+	}
 }
 
 // IsZero returns true if the style is empty.

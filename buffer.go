@@ -116,7 +116,7 @@ func (l Line) String() string {
 		if c.IsZero() {
 			continue
 		}
-		if c.Equal(&EmptyCell) {
+		if isEmptyCell(&c) {
 			pending.WriteByte(' ')
 			continue
 		}
@@ -148,7 +148,7 @@ func renderLine(buf io.StringWriter, l Line) {
 		if c.IsZero() {
 			continue
 		}
-		if c.Equal(&EmptyCell) {
+		if isEmptyCell(c) {
 			if !pen.IsZero() {
 				_, _ = buf.WriteString(ansi.ResetStyle)
 				pen = Style{}
