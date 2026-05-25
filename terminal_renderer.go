@@ -402,7 +402,7 @@ func (s *TerminalRenderer) move(newbuf *RenderBuffer, x, y int) {
 	// cursor position, thus, we need to reset the styles before moving the
 	// cursor.
 	blank := s.clearBlank()
-	resetPen := y != s.cur.Y && !blank.Equal(&EmptyCell)
+	resetPen := y != s.cur.Y && !isEmptyCell(blank)
 	if resetPen {
 		s.updatePen(nil)
 	}

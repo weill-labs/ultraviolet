@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestConvertStyle(t *testing.T) {
@@ -94,6 +95,207 @@ func TestConvertLink(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsEmptyCell(t *testing.T) {
+	tests := []struct {
+		name string
+		cell *Cell
+		want bool
+	}{
+		{
+			name: "empty cell",
+			cell: &EmptyCell,
+			want: true,
+		},
+		{
+			name: "matching value",
+			cell: &Cell{Content: " ", Width: 1},
+			want: true,
+		},
+		{
+			name: "zero cell",
+			cell: &Cell{},
+			want: false,
+		},
+		{
+			name: "nil cell",
+			cell: nil,
+			want: false,
+		},
+		{
+			name: "styled space",
+			cell: &Cell{Content: " ", Width: 1, Style: Style{Fg: ansi.Red}},
+			want: false,
+		},
+		{
+			name: "linked space",
+			cell: &Cell{Content: " ", Width: 1, Link: NewLink("https://example.com")},
+			want: false,
+		},
+		{
+			name: "wide space",
+			cell: &Cell{Content: " ", Width: 2},
+			want: false,
+		},
+		{
+			name: "visible content",
+			cell: &Cell{Content: "x", Width: 1},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isEmptyCell(tt.cell); got != tt.want {
+				t.Fatalf("isEmptyCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestColorValueEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a    color.Color
+		b    color.Color
+		want bool
+	}{
+		{
+			name: "rgba equal",
+			a:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			b:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			want: true,
+		},
+		{
+			name: "rgba different",
+			a:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			b:    color.RGBA{R: 3, G: 2, B: 1, A: 255},
+			want: false,
+		},
+		{
+			name: "ansi basic equal",
+			a:    ansi.Red,
+			b:    ansi.Red,
+			want: true,
+		},
+		{
+			name: "ansi indexed equal",
+			a:    ansi.IndexedColor(42),
+			b:    ansi.IndexedColor(42),
+			want: true,
+		},
+		{
+			name: "ansi truecolor equal",
+			a:    ansi.TrueColor(0xff00ff),
+			b:    ansi.TrueColor(0xff00ff),
+			want: true,
+		},
+		{
+			name: "ansi rgb equal",
+			a:    ansi.RGBColor{R: 1, G: 2, B: 3},
+			b:    ansi.RGBColor{R: 1, G: 2, B: 3},
+			want: true,
+		},
+		{
+			name: "ansi hex equal",
+			a:    ansi.HexColor("#010203"),
+			b:    ansi.HexColor("#010203"),
+			want: true,
+		},
+		{
+			name: "different concrete types",
+			a:    ansi.Red,
+			b:    ansi.IndexedColor(1),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := colorValueEqual(tt.a, tt.b); got != tt.want {
+				t.Fatalf("colorValueEqual() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestColorEqualFallbacks(t *testing.T) {
+	t.Run("pointer identical skips RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		c := &countingColor{rgba: [4]uint32{1, 2, 3, 4}, calls: &calls}
+		if !colorEqual(c, c) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+		if calls != 0 {
+			t.Fatalf("RGBA called %d times, want 0", calls)
+		}
+	})
+
+	t.Run("comparable value skips RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		c := comparableCountingColor{rgba: [4]uint32{1, 2, 3, 4}, calls: &calls}
+		if !colorEqual(c, c) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+		if calls != 0 {
+			t.Fatalf("RGBA called %d times, want 0", calls)
+		}
+	})
+
+	t.Run("non comparable falls back to RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		a := sliceColor{1, 2, 3, 4}
+		b := sliceColor{1, 2, 3, 4}
+		if !colorEqual(a, b) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+	})
+
+	t.Run("lossy mismatch falls back to RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		a := color.NRGBA{R: 1, A: 0}
+		b := color.NRGBA{R: 2, A: 0}
+		if !colorEqual(a, b) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+	})
+}
+
+type countingColor struct {
+	rgba  [4]uint32
+	calls *int
+}
+
+func (c *countingColor) RGBA() (uint32, uint32, uint32, uint32) {
+	*c.calls++
+	return c.rgba[0], c.rgba[1], c.rgba[2], c.rgba[3]
+}
+
+type comparableCountingColor struct {
+	rgba  [4]uint32
+	calls *int
+}
+
+func (c comparableCountingColor) RGBA() (uint32, uint32, uint32, uint32) {
+	*c.calls++
+	return c.rgba[0], c.rgba[1], c.rgba[2], c.rgba[3]
+}
+
+type sliceColor []uint32
+
+func (c sliceColor) RGBA() (uint32, uint32, uint32, uint32) {
+	return c[0], c[1], c[2], c[3]
 }
 
 func TestStyleDiff(t *testing.T) {
@@ -743,6 +945,48 @@ func TestStyleDiff(t *testing.T) {
 			got := StyleDiff(tt.from, tt.to)
 			if got != tt.want {
 				t.Errorf("StyleDiff() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func BenchmarkStyleEqual(b *testing.B) {
+	zero := Style{}
+	ansiRed := Style{Fg: ansi.Red}
+	rgbaRed := Style{Fg: color.RGBA{R: 255, A: 255}}
+	styled := Style{
+		Fg:             color.RGBA{R: 255, A: 255},
+		Bg:             color.RGBA{G: 255, A: 255},
+		UnderlineColor: color.RGBA{B: 255, A: 255},
+		Underline:      UnderlineStyleSingle,
+		Attrs:          AttrBold | AttrItalic,
+	}
+	styledCopy := styled
+
+	tests := []struct {
+		name string
+		a    *Style
+		b    *Style
+		want bool
+	}{
+		{name: "zero", a: &zero, b: &Style{}, want: true},
+		{name: "ansi-same", a: &ansiRed, b: &Style{Fg: ansi.Red}, want: true},
+		{name: "rgba-same", a: &rgbaRed, b: &Style{Fg: color.RGBA{R: 255, A: 255}}, want: true},
+		{name: "styled-same-pointer", a: &styled, b: &styled, want: true},
+		{name: "styled-equal-value", a: &styled, b: &styledCopy, want: true},
+		{name: "attrs-different", a: &styled, b: &Style{Attrs: AttrBold}, want: false},
+	}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			var got bool
+			for i := 0; i < b.N; i++ {
+				got = tt.a.Equal(tt.b)
+			}
+			if got != tt.want {
+				b.Fatalf("Style.Equal() = %v, want %v", got, tt.want)
 			}
 		})
 	}
