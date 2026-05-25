@@ -156,6 +156,148 @@ func TestIsEmptyCell(t *testing.T) {
 	}
 }
 
+func TestColorValueEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a    color.Color
+		b    color.Color
+		want bool
+	}{
+		{
+			name: "rgba equal",
+			a:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			b:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			want: true,
+		},
+		{
+			name: "rgba different",
+			a:    color.RGBA{R: 1, G: 2, B: 3, A: 255},
+			b:    color.RGBA{R: 3, G: 2, B: 1, A: 255},
+			want: false,
+		},
+		{
+			name: "ansi basic equal",
+			a:    ansi.Red,
+			b:    ansi.Red,
+			want: true,
+		},
+		{
+			name: "ansi indexed equal",
+			a:    ansi.IndexedColor(42),
+			b:    ansi.IndexedColor(42),
+			want: true,
+		},
+		{
+			name: "ansi truecolor equal",
+			a:    ansi.TrueColor(0xff00ff),
+			b:    ansi.TrueColor(0xff00ff),
+			want: true,
+		},
+		{
+			name: "ansi rgb equal",
+			a:    ansi.RGBColor{R: 1, G: 2, B: 3},
+			b:    ansi.RGBColor{R: 1, G: 2, B: 3},
+			want: true,
+		},
+		{
+			name: "ansi hex equal",
+			a:    ansi.HexColor("#010203"),
+			b:    ansi.HexColor("#010203"),
+			want: true,
+		},
+		{
+			name: "different concrete types",
+			a:    ansi.Red,
+			b:    ansi.IndexedColor(1),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := colorValueEqual(tt.a, tt.b); got != tt.want {
+				t.Fatalf("colorValueEqual() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestColorEqualFallbacks(t *testing.T) {
+	t.Run("pointer identical skips RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		c := &countingColor{rgba: [4]uint32{1, 2, 3, 4}, calls: &calls}
+		if !colorEqual(c, c) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+		if calls != 0 {
+			t.Fatalf("RGBA called %d times, want 0", calls)
+		}
+	})
+
+	t.Run("comparable value skips RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		c := comparableCountingColor{rgba: [4]uint32{1, 2, 3, 4}, calls: &calls}
+		if !colorEqual(c, c) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+		if calls != 0 {
+			t.Fatalf("RGBA called %d times, want 0", calls)
+		}
+	})
+
+	t.Run("non comparable falls back to RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		a := sliceColor{1, 2, 3, 4}
+		b := sliceColor{1, 2, 3, 4}
+		if !colorEqual(a, b) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+	})
+
+	t.Run("lossy mismatch falls back to RGBA", func(t *testing.T) {
+		t.Parallel()
+
+		a := color.NRGBA{R: 1, A: 0}
+		b := color.NRGBA{R: 2, A: 0}
+		if !colorEqual(a, b) {
+			t.Fatal("colorEqual() = false, want true")
+		}
+	})
+}
+
+type countingColor struct {
+	rgba  [4]uint32
+	calls *int
+}
+
+func (c *countingColor) RGBA() (uint32, uint32, uint32, uint32) {
+	*c.calls++
+	return c.rgba[0], c.rgba[1], c.rgba[2], c.rgba[3]
+}
+
+type comparableCountingColor struct {
+	rgba  [4]uint32
+	calls *int
+}
+
+func (c comparableCountingColor) RGBA() (uint32, uint32, uint32, uint32) {
+	*c.calls++
+	return c.rgba[0], c.rgba[1], c.rgba[2], c.rgba[3]
+}
+
+type sliceColor []uint32
+
+func (c sliceColor) RGBA() (uint32, uint32, uint32, uint32) {
+	return c[0], c[1], c[2], c[3]
+}
+
 func TestStyleDiff(t *testing.T) {
 	red := color.RGBA{255, 0, 0, 255}
 	blue := color.RGBA{0, 0, 255, 255}

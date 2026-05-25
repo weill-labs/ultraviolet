@@ -2,6 +2,7 @@ package uv
 
 import (
 	"image/color"
+	"reflect"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -448,84 +449,41 @@ func colorValueEqual(c, o color.Color) bool {
 	case color.RGBA:
 		o, ok := o.(color.RGBA)
 		return ok && c == o
-	case *color.RGBA:
-		o, ok := o.(*color.RGBA)
-		return ok && c != nil && c == o
-	case color.RGBA64:
-		o, ok := o.(color.RGBA64)
-		return ok && c == o
-	case *color.RGBA64:
-		o, ok := o.(*color.RGBA64)
-		return ok && c != nil && c == o
-	case color.NRGBA:
-		o, ok := o.(color.NRGBA)
-		return ok && c == o
-	case *color.NRGBA:
-		o, ok := o.(*color.NRGBA)
-		return ok && c != nil && c == o
-	case color.NRGBA64:
-		o, ok := o.(color.NRGBA64)
-		return ok && c == o
-	case *color.NRGBA64:
-		o, ok := o.(*color.NRGBA64)
-		return ok && c != nil && c == o
-	case color.Alpha:
-		o, ok := o.(color.Alpha)
-		return ok && c == o
-	case *color.Alpha:
-		o, ok := o.(*color.Alpha)
-		return ok && c != nil && c == o
-	case color.Alpha16:
-		o, ok := o.(color.Alpha16)
-		return ok && c == o
-	case *color.Alpha16:
-		o, ok := o.(*color.Alpha16)
-		return ok && c != nil && c == o
-	case color.Gray:
-		o, ok := o.(color.Gray)
-		return ok && c == o
-	case *color.Gray:
-		o, ok := o.(*color.Gray)
-		return ok && c != nil && c == o
-	case color.Gray16:
-		o, ok := o.(color.Gray16)
-		return ok && c == o
-	case *color.Gray16:
-		o, ok := o.(*color.Gray16)
-		return ok && c != nil && c == o
 	case ansi.BasicColor:
 		o, ok := o.(ansi.BasicColor)
 		return ok && c == o
-	case *ansi.BasicColor:
-		o, ok := o.(*ansi.BasicColor)
-		return ok && c != nil && c == o
 	case ansi.IndexedColor:
 		o, ok := o.(ansi.IndexedColor)
 		return ok && c == o
-	case *ansi.IndexedColor:
-		o, ok := o.(*ansi.IndexedColor)
-		return ok && c != nil && c == o
 	case ansi.TrueColor:
 		o, ok := o.(ansi.TrueColor)
 		return ok && c == o
-	case *ansi.TrueColor:
-		o, ok := o.(*ansi.TrueColor)
-		return ok && c != nil && c == o
 	case ansi.RGBColor:
 		o, ok := o.(ansi.RGBColor)
 		return ok && c == o
-	case *ansi.RGBColor:
-		o, ok := o.(*ansi.RGBColor)
-		return ok && c != nil && c == o
 	case ansi.HexColor:
 		o, ok := o.(ansi.HexColor)
 		return ok && c == o
-	case *ansi.HexColor:
-		o, ok := o.(*ansi.HexColor)
-		return ok && c != nil && c == o
 	default:
+		return comparableColorValueEqual(c, o)
+	}
+}
+
+func comparableColorValueEqual(c, o color.Color) bool {
+	ct := reflect.TypeOf(c)
+	if ct != reflect.TypeOf(o) {
 		return false
 	}
+
+	cv := reflect.ValueOf(c)
+	ov := reflect.ValueOf(o)
+	if ct.Kind() == reflect.Pointer {
+		return !cv.IsNil() && !ov.IsNil() && cv.Pointer() == ov.Pointer()
+	}
+	if !ct.Comparable() {
+		return false
+	}
+	return cv.Interface() == ov.Interface()
 }
 
 // IsZero returns true if the style is empty.
