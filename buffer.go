@@ -112,11 +112,12 @@ func (l Line) At(x int) *Cell {
 func (l Line) String() string {
 	var buf strings.Builder
 	var pending bytes.Buffer
-	for _, c := range l {
+	for i := range l {
+		c := &l[i]
 		if c.IsZero() {
 			continue
 		}
-		if isEmptyCell(&c) {
+		if isEmptyCell(c) {
 			pending.WriteByte(' ')
 			continue
 		}
