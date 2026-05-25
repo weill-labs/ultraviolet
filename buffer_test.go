@@ -667,6 +667,81 @@ func BenchmarkBufferSetCell(b *testing.B) {
 	}
 }
 
+func BenchmarkLineRenderStyleEquality(b *testing.B) {
+	line := benchmarkStyledLine(160)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = line.Render()
+	}
+}
+
+func BenchmarkBufferRenderChangedScreen(b *testing.B) {
+	frames := []*Buffer{
+		benchmarkStyledBuffer(120, 40, 0),
+		benchmarkStyledBuffer(120, 40, 1),
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = frames[i&1].Render()
+	}
+}
+
+func benchmarkStyledLine(width int) Line {
+	line := NewLine(width)
+	styles := []Style{
+		{Fg: ansi.Red, Bg: ansi.Black},
+		{Fg: ansi.Green, Bg: ansi.Black},
+		{Fg: ansi.Blue, Bg: ansi.Black},
+	}
+
+	for x := range line {
+		if x%5 == 4 {
+			line[x] = Cell{Content: " ", Width: 1, Style: styles[x%len(styles)]}
+			continue
+		}
+		line[x] = Cell{
+			Content: string(rune('a' + x%26)),
+			Width:   1,
+			Style:   styles[x%len(styles)],
+		}
+	}
+
+	return line
+}
+
+func benchmarkStyledBuffer(width, height, phase int) *Buffer {
+	buf := NewBuffer(width, height)
+	styles := []Style{
+		{Fg: ansi.Red},
+		{Fg: ansi.Green},
+		{Fg: ansi.Blue},
+		{Fg: ansi.Yellow},
+	}
+
+	for y := range height {
+		line := buf.Line(y)
+		for x := range width {
+			if x%13 == 12 {
+				line[x] = Cell{Content: " ", Width: 1, Style: styles[(x+y+phase)%len(styles)]}
+				continue
+			}
+			line[x] = Cell{
+				Content: string(rune('a' + (x+y+phase)%26)),
+				Width:   1,
+				Style:   styles[(x/8+y+phase)%len(styles)],
+			}
+		}
+	}
+
+	return buf
+}
+
 func BenchmarkBufferResize(b *testing.B) {
 	buf := NewBuffer(80, 24)
 	b.ResetTimer()

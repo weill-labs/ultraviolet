@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestConvertStyle(t *testing.T) {
@@ -91,6 +92,65 @@ func TestConvertLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ConvertLink(l, tt.profile); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConvertLink() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsEmptyCell(t *testing.T) {
+	tests := []struct {
+		name string
+		cell *Cell
+		want bool
+	}{
+		{
+			name: "empty cell",
+			cell: &EmptyCell,
+			want: true,
+		},
+		{
+			name: "matching value",
+			cell: &Cell{Content: " ", Width: 1},
+			want: true,
+		},
+		{
+			name: "zero cell",
+			cell: &Cell{},
+			want: false,
+		},
+		{
+			name: "nil cell",
+			cell: nil,
+			want: false,
+		},
+		{
+			name: "styled space",
+			cell: &Cell{Content: " ", Width: 1, Style: Style{Fg: ansi.Red}},
+			want: false,
+		},
+		{
+			name: "linked space",
+			cell: &Cell{Content: " ", Width: 1, Link: NewLink("https://example.com")},
+			want: false,
+		},
+		{
+			name: "wide space",
+			cell: &Cell{Content: " ", Width: 2},
+			want: false,
+		},
+		{
+			name: "visible content",
+			cell: &Cell{Content: "x", Width: 1},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isEmptyCell(tt.cell); got != tt.want {
+				t.Fatalf("isEmptyCell() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -743,6 +803,48 @@ func TestStyleDiff(t *testing.T) {
 			got := StyleDiff(tt.from, tt.to)
 			if got != tt.want {
 				t.Errorf("StyleDiff() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func BenchmarkStyleEqual(b *testing.B) {
+	zero := Style{}
+	ansiRed := Style{Fg: ansi.Red}
+	rgbaRed := Style{Fg: color.RGBA{R: 255, A: 255}}
+	styled := Style{
+		Fg:             color.RGBA{R: 255, A: 255},
+		Bg:             color.RGBA{G: 255, A: 255},
+		UnderlineColor: color.RGBA{B: 255, A: 255},
+		Underline:      UnderlineStyleSingle,
+		Attrs:          AttrBold | AttrItalic,
+	}
+	styledCopy := styled
+
+	tests := []struct {
+		name string
+		a    *Style
+		b    *Style
+		want bool
+	}{
+		{name: "zero", a: &zero, b: &Style{}, want: true},
+		{name: "ansi-same", a: &ansiRed, b: &Style{Fg: ansi.Red}, want: true},
+		{name: "rgba-same", a: &rgbaRed, b: &Style{Fg: color.RGBA{R: 255, A: 255}}, want: true},
+		{name: "styled-same-pointer", a: &styled, b: &styled, want: true},
+		{name: "styled-equal-value", a: &styled, b: &styledCopy, want: true},
+		{name: "attrs-different", a: &styled, b: &Style{Attrs: AttrBold}, want: false},
+	}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			var got bool
+			for i := 0; i < b.N; i++ {
+				got = tt.a.Equal(tt.b)
+			}
+			if got != tt.want {
+				b.Fatalf("Style.Equal() = %v, want %v", got, tt.want)
 			}
 		})
 	}
